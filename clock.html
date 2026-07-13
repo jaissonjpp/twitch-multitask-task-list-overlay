@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer Visual Quadrado - Nuvem na Tangente e Raio</title>
+    <style>
+        /* ==========================================================================
+           🎨 CUSTOMIZATION DIRECTORY (Where to adjust visual and timing settings)
+           ==========================================================================
+           1. FADE-OUT TRANSITION DURATION:
+              - Adjusted in `.timer-container` via `transition: opacity ...`
+              
+           2. INACTIVITY DELAY BEFORE FADEOUT (15s):
+              - Adjusted in JavaScript under `startFadeOutTimeout()`
+              
+           3. VIBRATION FREQUENCY (Tremor cycle speed):
+              - Adjusted in `.timer-container.shake-vibrate` via `animation: shake ...`
+              
+           4. VIBRATION DURATION ON TIMER END (3s):
+              - Adjusted in JavaScript inside `vibrateClock()`
+              
+           5. CENTER KNOB SIZE (nob central):
+              - Adjusted in `.center-knob` via `width`/`height`
+              
+           6. WATCHFACE TYPE & TRANSPARENCY:
+              - Adjusted at the top of the `<script>` tag via `watchfaceType` and `backgroundOpacity`
+              
+           7. CLOCK SIZE (Resolution / canvas size):
+              - Adjusted in HTML on the `<canvas>` tag `width`/`height` attributes
+              
+           8. RAINBOW RADIUS, TICK RADIUS, & NUMBER POSITION:
+              - Adjusted in JavaScript inside `drawClock()`
+              
+           9. HAPPY CLOUD SIZE (tamanho da nuvem):
+              - Adjusted in JavaScript inside `drawCloud()` via `cloudScale`
+           ========================================================================== */
+
+        :root {
+            --clock-opacity: 1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f0f4f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .timer-container {
+            border: 20px solid #62b6de;
+            /* Solid blue outer rim */
+            background: transparent;
+            border-radius: 45px;
+            box-shadow:
+                0 20px 35px rgba(0, 0, 0, 0.15),
+                inset 0 4px 10px rgba(255, 255, 255, 0.6),
+                inset 0 -4px 10px rgba(0, 0, 0, 0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            transition: opacity 1s ease-in-out;
+            /* ◄ [1] FADE-OUT TRANSITION DURATION */
+            opacity: 1;
+        }
+
+        .timer-container.fade-out {
+            opacity: 0;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+            }
+
+            10% {
+                transform: translate(-2px, -1px) rotate(-1deg);
+            }
+
+            20% {
+                transform: translate(-3px, 1px) rotate(0.5deg);
+            }
+
+            30% {
+                transform: translate(1px, 2px) rotate(0deg);
+            }
+
+            40% {
+                transform: translate(2px, -1px) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-1px, 2px) rotate(-0.5deg);
+            }
+
+            60% {
+                transform: translate(-3px, 1px) rotate(0deg);
+            }
+
+            70% {
+                transform: translate(2px, 1px) rotate(-1deg);
+            }
+
+            80% {
+                transform: translate(-1px, -1px) rotate(0.5deg);
+            }
+
+            90% {
+                transform: translate(2px, 2px) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(1px, -2px) rotate(-0.5deg);
+            }
+        }
+
+        .timer-container.shake-vibrate {
+            animation: shake 0.15s infinite;
+            /* ◄ [3] VIBRATION FREQUENCY */
+        }
+
+        canvas {
+            background-color: rgba(255, 255, 255, var(--clock-opacity));
+            border-radius: 30px;
+            box-shadow:
+                inset 0 3px 10px rgba(0, 0, 0, 0.08),
+                0 5px 15px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+        }
+
+        .center-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            /* ◄ [5] CENTER KNOB WIDTH */
+            height: 50px;
+            /* ◄ [5] CENTER KNOB HEIGHT */
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow:
+                0 6px 15px rgba(0, 0, 0, 0.15),
+                inset 0 0 0 4px #f5f7fa,
+                inset 0 0 0 8px #e4e8f0;
+            pointer-events: none;
+        }
+
+        /* 🔵 WATCHFACE & TRANSPARENCY CONFIGURATION CLASSES */
+        .timer-container.watchface-round {
+            border-radius: 50%;
+        }
+
+        .timer-container.watchface-round canvas {
+            border-radius: 50%;
+        }
+
+        body.transparent-mode {
+            background-color: transparent !important;
+        }
+
+        .timer-container.transparent-mode canvas {
+            box-shadow: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="timer-container">
+        <canvas id="timerCanvas" width="335" height="335"></canvas>
+        <!-- // ◄ [7] CLOCK SIZE (Resolution / canvas size) -->
+        <div class="center-knob"></div> <!-- // ◄ [5] CENTER KNOB -->
+    </div>
+
+
+    <script>
+        // ============================================================
+        // ⚙️ CLOCK CONFIGURATION (Watchface)
+        // ============================================================
+        const watchfaceType = 'square'; // 'round' or 'square'
+        const backgroundOpacity = 50;  // Background opacity (0 = transparent, 100 = solid)
+
+        // Applies visual configurations based on variables above
+        const timerContainer = document.querySelector('.timer-container');
+        if (watchfaceType === 'round') {
+            timerContainer.classList.add('watchface-round');
+        }
+
+        // Applies opacity using the CSS variable (--clock-opacity)
+        const opacityValue = Math.min(Math.max(backgroundOpacity, 0), 100) / 100;
+        document.documentElement.style.setProperty('--clock-opacity', opacityValue.toString());
+
+        // If the clock is partially transparent, body background must be transparent (for OBS)
+        if (backgroundOpacity < 100) {
+            document.body.classList.add('transparent-mode');
+        }
+        // If fully transparent (0), we also remove the inner canvas shadow
+        if (backgroundOpacity === 0) {
+            timerContainer.classList.add('transparent-mode');
+        }
+
+        const canvas = document.getElementById('timerCanvas');
+        const ctx = canvas.getContext('2d');
+        const center = canvas.width / 2;
+
+        let totalTime = 18 * 60;
+        let remainingTime = totalTime;
+        let timerId = null;
+        let isRunning = false;
+        let currentPhase = 'idle'; // 'idle' | 'pomo' | 'break'
+
+        const rainbowColors = [
+            '#FF1744', '#FF9100', '#FFEA00',
+            '#00E676', '#00B0FF', '#651FFF'
+        ];
+
+        const numberColors = [
+            '#FF1744', '#FF9100', '#FFEA00', '#00E676',
+            '#00B0FF', '#651FFF', '#FF1744', '#FF9100',
+            '#FFEA00', '#00E676', '#00B0FF', '#651FFF'
+        ];
+
+        function drawClock() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const startAngle = -Math.PI / 2;
+            const ratio = remainingTime / (60 * 60);
+            const endAngle = startAngle + (ratio * Math.PI * 2);
+
+            // 1. Rainbow Disc
+            if (remainingTime > 0) {
+                const outerRadius = 110;
+                const lineWidth = 16;
+
+                rainbowColors.forEach((color, index) => {
+                    ctx.beginPath();
+                    ctx.arc(
+                        center, center,
+                        outerRadius - (index * lineWidth),
+                        startAngle, endAngle, false
+                    );
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = lineWidth;
+                    ctx.stroke();
+                });
+
+                drawCloud(endAngle, 85);
+            }
+
+            // 2. Minute Ticks
+            for (let i = 0; i < 60; i++) {
+                const angle = (-Math.PI / 2) + (i / 60) * (Math.PI * 2);
+                const isMultipleOf5 = i % 5 === 0;
+
+                const innerRadius = 122;
+                const outerRadius = isMultipleOf5 ? 135 : 128;
+
+                const x1 = center + Math.cos(angle) * innerRadius;
+                const y1 = center + Math.sin(angle) * innerRadius;
+                const x2 = center + Math.cos(angle) * outerRadius;
+                const y2 = center + Math.sin(angle) * outerRadius;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.lineWidth = isMultipleOf5 ? 3.5 : 1.5;
+                ctx.strokeStyle = isMultipleOf5 ? numberColors[i / 5] : '#b0bec5';
+                ctx.stroke();
+            }
+
+            // 3. External Numbers
+            ctx.font = '900 24px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let i = 0; i < 12; i++) {
+                const number = i * 5;
+                const angle = (-Math.PI / 2) + (i / 12) * (Math.PI * 2);
+                const textRadius = 153; // ◄ [4] NUMBERS DISTANCE FROM CENTER
+
+                const x = center + Math.cos(angle) * textRadius;
+                const y = center + Math.sin(angle) * textRadius;
+
+                ctx.fillStyle = numberColors[i];
+                ctx.fillText(number.toString(), x, y);
+            }
+
+            // 4. Phase Label
+            drawPhaseBadge();
+        }
+
+        // =========================================================
+        // ☁️ HAPPY CLOUD, ROTATED AND POSITIONED ON RADIAL/TANGENT
+        // =========================================================
+        function drawCloud(angle, radius) {
+            ctx.save();
+
+            // 💡 Radial offset (pushes cloud away from or pulls closer to center)
+            const radialOffset = -10;
+
+            // Tangent offset (shifts cloud forward/backward along the arc)
+            const tangentOffset = 2;
+
+            ctx.translate(center, center);
+            ctx.rotate(angle);
+
+            // Apply offsets to the base radius
+            ctx.translate(radius + radialOffset, tangentOffset);
+
+            // Scale factor: 1.0 is default. E.g., 1.2 to enlarge, 0.8 to shrink.
+            const cloudScale = 1;
+            ctx.scale(cloudScale, cloudScale);
+
+            // Shadows
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.18)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+
+            // 1. Cloud Body
+            ctx.beginPath();
+            ctx.moveTo(-39, 0);
+            ctx.lineTo(43, 0);
+
+            ctx.bezierCurveTo(47, 18, 29, 32, 12, 24);
+            ctx.bezierCurveTo(8, 42, -18, 40, -22, 22);
+            ctx.bezierCurveTo(-32, 26, -49, 12, -48, 0);
+            ctx.closePath();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+
+            ctx.shadowColor = 'transparent';
+
+            // Blue Outline
+            ctx.strokeStyle = '#00A8FF';
+            ctx.lineWidth = 4;
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            // 2. Happy Face
+            ctx.fillStyle = '#263238';
+
+            // Eyes
+            ctx.beginPath();
+            ctx.arc(-8, 14, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(8, 14, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Smile
+            ctx.beginPath();
+            ctx.arc(0, 16, 3.5, 0, Math.PI, false);
+            ctx.strokeStyle = '#263238';
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // Phase badge: "Pomo" during focus, "Break" during break/pause
+        function drawPhaseBadge() {
+            if (currentPhase === 'idle') return; // Do not draw before the timer starts
+
+            const x = 40, y = 300;
+            const isPomo = currentPhase === 'pomo';
+
+            // Background color: blue for pomo, orange for break
+            ctx.fillStyle = isPomo ? '#29b6f6' : '#FF9100';
+
+            ctx.beginPath();
+            ctx.roundRect(x - 30, y - 14, 60, 26, 12);
+            ctx.fill();
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '900 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(isPomo ? 'Pomo' : 'Break', x, y + 1);
+        }
+
+        // ============================================================
+        // 🔄 INACTIVITY FADEOUT LOGIC (15 seconds)
+        // ============================================================
+        const container = document.querySelector('.timer-container');
+        let fadeOutTimeout = null;
+        let vibrateTimeout = null;
+
+        function resetFadeOutTimeout() {
+            if (fadeOutTimeout) {
+                clearTimeout(fadeOutTimeout);
+                fadeOutTimeout = null;
+            }
+            if (vibrateTimeout) {
+                clearTimeout(vibrateTimeout);
+                vibrateTimeout = null;
+            }
+            container.classList.remove('fade-out');
+            container.classList.remove('shake-vibrate');
+        }
+
+        function startFadeOutTimeout() {
+            resetFadeOutTimeout();
+            fadeOutTimeout = setTimeout(() => {
+                container.classList.add('fade-out');
+            }, 15000); // 15 seconds
+        }
+
+        function vibrateClock() {
+            if (vibrateTimeout) {
+                clearTimeout(vibrateTimeout);
+            }
+            container.classList.add('shake-vibrate');
+            vibrateTimeout = setTimeout(() => {
+                container.classList.remove('shake-vibrate');
+                vibrateTimeout = null;
+            }, 3000); // Vibrates for 3 seconds
+        }
+
+        // startTimer and pauseTimer are kept for compatibility with the canvas click handler,
+        // but the clock is display-driven and managed by the BroadcastChannel events.
+        function startTimer() {
+            isRunning = true;
+            resetFadeOutTimeout();
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            clearInterval(timerId);
+            startFadeOutTimeout();
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            remainingTime = 0;
+            drawClock();
+        }
+
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left - center;
+            const y = event.clientY - rect.top - center;
+
+            let angle = Math.atan2(y, x) + (Math.PI / 2);
+            if (angle < 0) angle += Math.PI * 2;
+
+            let minutes = Math.round((angle / (Math.PI * 2)) * 60);
+            if (minutes === 0) minutes = 60;
+
+            remainingTime = minutes * 60;
+            drawClock();
+
+            resetFadeOutTimeout();
+            if (!isRunning) {
+                startFadeOutTimeout();
+            }
+        });
+
+        // ============================================================
+        // 📡 TWITCH OVERLAY INTEGRATION (BroadcastChannel)
+        // The clock is display-driven and does not run its own interval.
+        // Updates come from clock-bridge.iife.js via index.html.
+        //   { action: 'start', seconds: N } → adjusts progress and starts
+        //   { action: 'tick',  seconds: N } → updates progress on every tick
+        //   { action: 'pause' }             → pauses progress display
+        //   { action: 'resume' }            → resumes tick rendering
+        //   { action: 'reset' }             → clears progress
+        // ============================================================
+        const clockChannel = new BroadcastChannel('clock-channel');
+
+        clockChannel.addEventListener('message', (event) => {
+            const { action, seconds } = event.data ?? {};
+
+            switch (action) {
+                case 'start':
+                    if (typeof seconds === 'number' && seconds > 0) {
+                        remainingTime = seconds;
+                    }
+                    if (event.data.phase) currentPhase = event.data.phase;
+                    startTimer();
+                    drawClock();
+                    break;
+
+                case 'tick':
+                    if (typeof seconds === 'number') {
+                        if (remainingTime > 0 && seconds === 0) {
+                            vibrateClock();
+                        }
+                        remainingTime = seconds;
+                        if (event.data.phase) currentPhase = event.data.phase;
+                        drawClock();
+                    }
+                    break;
+
+                case 'phase':
+                    if (event.data.phase) {
+                        currentPhase = event.data.phase;
+                        drawClock();
+                    }
+                    break;
+
+                case 'pause':
+                    pauseTimer();
+                    break;
+
+                case 'resume':
+                    startTimer();
+                    break;
+
+                case 'reset':
+                    currentPhase = 'idle';
+                    resetTimer();
+                    break;
+            }
+        });
+
+        drawClock();
+        startFadeOutTimeout();
+    </script>
+</body>
+
+</html>
