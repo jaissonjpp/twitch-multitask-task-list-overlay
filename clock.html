@@ -24,8 +24,9 @@
            5. CENTER KNOB SIZE (nob central):
               - Adjusted in `.center-knob` via `width`/`height`
               
-           6. WATCHFACE TYPE & TRANSPARENCY:
-              - Adjusted at the top of the `<script>` tag via `watchfaceType` and `backgroundOpacity`
+            6. WATCHFACE TYPE, TRANSPARENCY & CLOCK STYLE:
+               - Adjusted at the top of the `<script>` tag via `watchfaceType`, `backgroundOpacity` and `clockStyle`
+               - `clockStyle`: 'classic' (black border, black numbers, red arcs) or 'rainbow' (colorful)
               
            7. CLOCK SIZE (Resolution / canvas size):
               - Adjusted in HTML on the `<canvas>` tag `width`/`height` attributes
@@ -60,8 +61,8 @@
         }
 
         .timer-container {
-            border: 20px solid #62b6de;
-            /* Solid blue outer rim */
+            border: 20px solid var(--border-color, #62b6de);
+            /* Solid outer rim – color set by clockStyle */
             background: transparent;
             border-radius: 45px;
             box-shadow:
@@ -193,11 +194,19 @@
         // ============================================================
         const watchfaceType = 'square'; // 'round' or 'square'
         const backgroundOpacity = 50;  // Background opacity (0 = transparent, 100 = solid)
+        const clockStyle = 'rainbow';  // 'classic' or 'rainbow'
 
         // Applies visual configurations based on variables above
         const timerContainer = document.querySelector('.timer-container');
         if (watchfaceType === 'round') {
             timerContainer.classList.add('watchface-round');
+        }
+
+        // Applies border color based on clock style
+        if (clockStyle === 'classic') {
+            document.documentElement.style.setProperty('--border-color', '#1a1a1a');
+        } else {
+            document.documentElement.style.setProperty('--border-color', '#62b6de');
         }
 
         // Applies opacity using the CSS variable (--clock-opacity)
@@ -223,16 +232,31 @@
         let isRunning = false;
         let currentPhase = 'idle'; // 'idle' | 'pomo' | 'break'
 
-        const rainbowColors = [
+        // Rainbow style colors
+        const rainbowArcColors = [
             '#FF1744', '#FF9100', '#FFEA00',
             '#00E676', '#00B0FF', '#651FFF'
         ];
-
-        const numberColors = [
+        const rainbowNumberColors = [
             '#FF1744', '#FF9100', '#FFEA00', '#00E676',
             '#00B0FF', '#651FFF', '#FF1744', '#FF9100',
             '#FFEA00', '#00E676', '#00B0FF', '#651FFF'
         ];
+
+        // Classic style colors (red arcs, black numbers/ticks)
+        const classicArcColors = [
+            '#D32F2F', '#D32F2F', '#D32F2F',
+            '#D32F2F', '#D32F2F', '#D32F2F'
+        ];
+        const classicNumberColors = [
+            '#1a1a1a', '#1a1a1a', '#1a1a1a', '#1a1a1a',
+            '#1a1a1a', '#1a1a1a', '#1a1a1a', '#1a1a1a',
+            '#1a1a1a', '#1a1a1a', '#1a1a1a', '#1a1a1a'
+        ];
+
+        // Select active palette based on clockStyle
+        const rainbowColors = clockStyle === 'classic' ? classicArcColors : rainbowArcColors;
+        const numberColors = clockStyle === 'classic' ? classicNumberColors : rainbowNumberColors;
 
         function drawClock() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -258,7 +282,9 @@
                     ctx.stroke();
                 });
 
-                drawCloud(endAngle, 85);
+                if (clockStyle !== 'classic') {
+                    drawCloud(endAngle, 85);
+                }
             }
 
             // 2. Minute Ticks
@@ -278,7 +304,9 @@
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
                 ctx.lineWidth = isMultipleOf5 ? 3.5 : 1.5;
-                ctx.strokeStyle = isMultipleOf5 ? numberColors[i / 5] : '#b0bec5';
+                ctx.strokeStyle = isMultipleOf5
+                    ? numberColors[i / 5]
+                    : (clockStyle === 'classic' ? '#555555' : '#b0bec5');
                 ctx.stroke();
             }
 
@@ -347,7 +375,7 @@
             ctx.shadowColor = 'transparent';
 
             // Blue Outline
-            ctx.strokeStyle = '#00A8FF';
+            ctx.strokeStyle = clockStyle === 'classic' ? '#D32F2F' : '#00A8FF';
             ctx.lineWidth = 4;
             ctx.lineJoin = 'round';
             ctx.stroke();
