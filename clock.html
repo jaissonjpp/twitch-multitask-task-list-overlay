@@ -24,17 +24,21 @@
            5. CENTER KNOB SIZE (nob central):
               - Adjusted in `.center-knob` via `width`/`height`
               
-            6. WATCHFACE TYPE, TRANSPARENCY & CLOCK STYLE:
-               - Adjusted at the top of the `<script>` tag via `watchfaceType`, `backgroundOpacity` and `clockStyle`
-               - `clockStyle`: 'classic' (black border, black numbers, red arcs) or 'rainbow' (colorful)
+           6. WATCHFACE TYPE, TRANSPARENCY & CLOCK STYLE:
+              - Adjusted at the top of the `<script>` tag
+              - `watchfaceType`: 'round' or 'square'
+              - `backgroundOpacity`: 0 (transparent) to 100 (solid)
+              - `clockStyle`: 'classic' or 'rainbow'
+                  • classic: black border, black numbers, red arcs, no cloud
+                  • rainbow: blue border, colorful numbers, rainbow arcs, cloud indicator
               
            7. CLOCK SIZE (Resolution / canvas size):
               - Adjusted in HTML on the `<canvas>` tag `width`/`height` attributes
               
-           8. RAINBOW RADIUS, TICK RADIUS, & NUMBER POSITION:
+           8. ARC RADIUS, TICK RADIUS, & NUMBER POSITION:
               - Adjusted in JavaScript inside `drawClock()`
               
-           9. HAPPY CLOUD SIZE (tamanho da nuvem):
+           9. HAPPY CLOUD SIZE (tamanho da nuvem) — rainbow mode only:
               - Adjusted in JavaScript inside `drawCloud()` via `cloudScale`
            ========================================================================== */
 
